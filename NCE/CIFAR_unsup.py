@@ -22,7 +22,6 @@ from LP import *
 
 import copy
 
-
 parser = argparse.ArgumentParser(description="unsupervised embedding training with NCE")
 parser.add_argument(
     "--name",
@@ -100,6 +99,8 @@ parser.add_argument("--n-worker", type=int, default=15, help="number of worker")
 parser.add_argument("--rand_aug", action="store_true", help="use random augmentation")
 
 parser.add_argument("--ae_pretrain", action="store_true", help="apply ae pretraining")
+parser.add_argument("--nm", action="store_true", help="do negative mining")
+
 parser.add_argument(
     "--nb_epoch_ae",
     default=100,
@@ -178,7 +179,6 @@ if args.dataset == "cifar":
     cifar_train_pair_dataset = CIFAR10_pairs(
         base, train=True, transform=train_augment, download=False
     )
-
     # CREATE  BATCHLOADER
     dataloader_trainnoaugment = torch.utils.data.DataLoader(
         cifar_train_dataset_noaugment,
@@ -360,9 +360,24 @@ if args.dataset == "cifar":
 
 
 for epoch in range(start_epoch, args.n_epoch):
-    train_results = train(
-        model, dataloader_train_pairs, optimizer, scheduler, args, device, log_temp
-    )
+    if args.nm:
+        # if epoch <=1:
+        #     train_results = train(model, dataloader_train_pairs, optimizer, scheduler, args, device, log_temp)
+        if epoch % 2 == 0:
+            feature_mat, label_arr = extract_features(dataloader_trainnoaugment, model, device)
+            index = faiss.IndexFlatIP(128)
+            index.add(feature_mat)
+            distances, indices = index.search(feature_mat, 100)
+
+            trainset_nm = CIFARNegativeMining(indices, root='./data', train=True, download=True,
+                                                transform=train_augment)
+            trainloader_nm = torch.utils.data.DataLoader(trainset_nm, batch_size=170, shuffle=True, num_workers=20,
+                                                    drop_last=True)
+        train_results = train(model, trainloader_nm, optimizer, scheduler, args, device, log_temp)
+        
+    else:
+        train_results = train(model, dataloader_train_pairs, optimizer, scheduler, args, device, log_temp)
+    
     scheduler.step(epoch)
     # scheduler.step(train_results["avg_loss"])
     total_train_time += train_results["compute_time"]

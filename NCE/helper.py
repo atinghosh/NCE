@@ -67,6 +67,35 @@ def generate_subset_of_CIFAR_for_ssl(
 
 # Custom dataset
 
+class CIFARNegativeMining(torchvision.datasets.CIFAR10):
+    """CIFAR10Instance Dataset.
+    """
+    def __init__(self, nn_index_mat, *args, **kwargs):
+        super(CIFARNegativeMining, self).__init__(*args, **kwargs)
+        if self.train:
+            self.index_mat = nn_index_mat
+
+    def __getitem__(self, index):
+        if self.train:
+            # img, target = self.train_data[index], self.train_labels[index]
+            index1, index2 = self.index_mat[index, 49], self.index_mat[index, 99]
+            img1, target = self.data[index], self.targets[index]
+            img2, img3 = self.data[index1], self.data[index2]
+            # doing this so that it is consistent with all other datasets
+            # to return a PIL Image
+            img1, img2, img3 = Image.fromarray(img1), Image.fromarray(img2), Image.fromarray(img3)
+
+            img1_v1, img2_v1, img3_v1 = self.transform(img1), self.transform(img2), self.transform(img3)
+            img1_v2, img2_v2, img3_v2 = self.transform(img1), self.transform(img2), self.transform(img3)
+
+            return img1_v1, img2_v1, img3_v1, img1_v2, img2_v2, img3_v2, target, index
+
+        else:
+            img, target = self.data[index], self.targets[index]
+            img = Image.fromarray(img)
+            img1 = self.transform(img)
+
+            return img1, target, index
 
 
 
@@ -94,9 +123,61 @@ class STL10_pairs(torchvision.datasets.STL10):
 
 # Augmentation
 
+# class ImgAugTransform:
+#     def __init__(self):
+#         self.aug = iaa.Sequential([
+#             iaa.Sometimes(0.25, iaa.GaussianBlur(sigma=(0, 3.0))),
+#             iaa.Fliplr(0.5),
+#             iaa.Affine(rotate=(-20, 20), mode='symmetric'),
+#             iaa.Sometimes(0.25,
+#                           iaa.OneOf([iaa.Dropout(p=(0, 0.1)),
+#                                      iaa.CoarseDropout(0.1, size_percent=0.5)])),
+#             iaa.AddToHueAndSaturation(value=(-10, 10), per_channel=True)
+#         ])
+      
+#     def __call__(self, img):
+#         img = np.array(img)
+#         return self.aug.augment_image(img)
+
+# tfs = torchvision.transforms.Compose([
+#     torchvision.transforms.RandomResizedCrop(size=32, scale=(0.2, 1.0)),
+#     ImgAugTransform(),
+#     torchvision.transforms. ToPILImage(),
+#     torchvision.transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
+#     torchvision.transforms.ToTensor()
+# ])
+
+
+sometimes = lambda aug: iaa.Sometimes(0.5, aug)
 class ImgAugTransform:
     def __init__(self):
         self.aug = iaa.Sequential([
+#             iaa.Resize((224, 224)),
+            # iaa.Sometimes(0.25, iaa.GaussianBlur(sigma=(0, 3.0))),
+            iaa.Fliplr(0.5),
+#             iaa.Flipud(0.1), # vertically flip 20% of all images
+            iaa.Affine(rotate=(-5, 5),  
+                       shear=(-3, 3), 
+                       translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)},
+                       mode='symmetric'),
+            # iaa.SaltAndPepper(p=(0, 0.03)),
+#             iaa.Sometimes(0.1,
+#                           iaa.OneOf([iaa.Dropout(p=(0, 0.1)),
+#                                      iaa.CoarseDropout(0.1, size_percent=0.5)])),
+            
+#             iaa.LinearContrast((0.5, 2.0), per_channel=0.5),
+#             sometimes(
+#                     iaa.ElasticTransformation(alpha=(0.5, 3.5), sigma=0.25)
+#                 ),
+#             iaa.Grayscale(alpha=(0.0, 1.0)),
+            # sometimes(iaa.PiecewiseAffine(scale=(0.01, 0.05))),
+#             iaa.Multiply((0.8, 1.2), per_channel=0.2),
+#             iaa.ContrastNormalization((0.75, 1.5)),
+            
+#             iaa.AddToHueAndSaturation(value=(-10, 10), per_channel=True)
+        ], random_order=True)
+        self.aug2 = iaa.Sequential([
+#             iaa.Scale((224, 224)),
             iaa.Sometimes(0.25, iaa.GaussianBlur(sigma=(0, 3.0))),
             iaa.Fliplr(0.5),
             iaa.Affine(rotate=(-20, 20), mode='symmetric'),
@@ -108,13 +189,15 @@ class ImgAugTransform:
       
     def __call__(self, img):
         img = np.array(img)
+#         return self.aug1.augment_image(img)
         return self.aug.augment_image(img)
 
 tfs = torchvision.transforms.Compose([
-    torchvision.transforms.RandomResizedCrop(size=32, scale=(0.2, 1.0)),
     ImgAugTransform(),
     torchvision.transforms. ToPILImage(),
+    torchvision.transforms.RandomResizedCrop(size=32, scale=(0.2, 1.0)),
     torchvision.transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
+    torchvision.transforms.RandomGrayscale(p=0.2),
     torchvision.transforms.ToTensor()
 ])
 
@@ -527,9 +610,14 @@ def train(model, pair_dataloader, optimizer, scheduler, args, device, log_temp):
     # first_batch = True
 
     for batch_id, batch in enumerate(pair_dataloader):
-        batch_0 = batch[0].to(device)
-        batch_1 = batch[1].to(device)
-        labels = batch[2]
+        if args.nm:
+            batch_0 = torch.cat((batch[0], batch[1], batch[2]), 0).to(device)
+            batch_1 = torch.cat((batch[3], batch[4], batch[5]), 0).to(device)
+            labels = batch[6]
+        else:
+            batch_0 = batch[0].to(device)
+            batch_1 = batch[1].to(device)
+            labels = batch[2]
 
         if args.no_mixup:
             batch_1_mixup = batch_1
