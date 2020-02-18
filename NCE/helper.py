@@ -317,6 +317,33 @@ def feature_loss(model, features_0, features_1, args, device, log_temp):
     #
     #  Noise Contrastive Estimation
     #
+
+    elif args.approach == "sim_CLR":
+        temp = 0.1  # temparture patameter
+        proba_unorm_10 = torch.exp(sim_10 / temp)
+        proba_unorm_01 = torch.exp(sim_01 / temp)
+        proba_unorm_00 = torch.exp(sim_00 / temp)
+        proba_unorm_11 = torch.exp(sim_11 / temp)
+
+        norm_constant_10 = (
+                torch.sum(proba_unorm_10, axis=1)
+                + torch.sum(proba_unorm_11, axis=1)
+                - torch.diag(proba_unorm_11) - torch.diag(proba_unorm_10)
+            )
+        norm_constant_01 = (
+                torch.sum(proba_unorm_01, axis=1)
+                + torch.sum(proba_unorm_00, axis=1)
+                - torch.diag(proba_unorm_00) - torch.diag(proba_unorm_01)
+            )
+            
+        # Z = model.norm_const()
+        proba_norm_10 = proba_unorm_10 / (1* norm_constant_10.view(-1, 1)) 
+        proba_norm_01 = proba_unorm_01 / (1* norm_constant_01.view(-1, 1))      
+        loss = torch.sum(torch.log(1.0 + 1.0 / torch.diag(proba_norm_10)))
+        loss += torch.sum(torch.log(1.0 + 1.0 / torch.diag(proba_norm_01)))
+        return .5 * loss / batchsize
+
+        
     elif args.approach == "NCE":
         temp = 0.1  # temparture patameter
         proba_unorm_10 = torch.exp(sim_10 / temp)

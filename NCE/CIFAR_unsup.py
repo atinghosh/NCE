@@ -35,7 +35,7 @@ parser.add_argument(
     help='dataset name: "cifar": cifar-10 datasetor "stl": stl-10 dataset]',
 )
 parser.add_argument(
-    "--gpu", default="0,2,3", type=str, help="gpu device ids for CUDA_VISIBLE_DEVICES"
+    "--gpu", default="0,2", type=str, help="gpu device ids for CUDA_VISIBLE_DEVICES"
 )
 parser.add_argument(
     "--approach",
@@ -48,6 +48,7 @@ parser.add_argument(
         "NCE_all_grad",
         "NCE_without_z",
         "learnable_tau",
+        "sim_CLR"
     ],
     help="choice of loss to be used for embedding learning",
 )
@@ -286,15 +287,26 @@ model.to(device)
 
 if args.dataset == "cifar":
 
-    def lr_lambda(epoch):
-        if epoch < 1210:
-            return 1
-        elif epoch >= 1210 and epoch < 1510:
-            return 0.16666667
-        elif epoch >= 1510 and epoch < 1810:
-            return 0.0335
-        else:
-            return 0.01
+    if args.nm:
+        def lr_lambda(epoch):
+            if epoch < 400:
+                return 1
+            elif epoch >= 400 and epoch < 500:
+                return 0.16666667
+            elif epoch >= 500 and epoch < 600:
+                return 0.0335
+            else:
+                return 0.01
+    else:
+        def lr_lambda(epoch):
+            if epoch < 1210:
+                return 1
+            elif epoch >= 1210 and epoch < 1510:
+                return 0.16666667
+            elif epoch >= 1510 and epoch < 1810:
+                return 0.0335
+            else:
+                return 0.01
 
 
 if args.dataset == "stl":
