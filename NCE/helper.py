@@ -186,17 +186,23 @@ class ImgAugTransform:
                                      iaa.CoarseDropout(0.1, size_percent=0.5)])),
             iaa.AddToHueAndSaturation(value=(-10, 10), per_channel=True)
         ])
+
+        self.aug3 = iaa.Sequential([
+#             iaa.Scale((224, 224)),
+            iaa.RandAugment(n=2, m=9)
+        ])
       
     def __call__(self, img):
         img = np.array(img)
+        return self.aug3(image=img)
 #         return self.aug1.augment_image(img)
-        return self.aug.augment_image(img)
+        # return self.aug.augment_image(img)
 
 tfs = torchvision.transforms.Compose([
     ImgAugTransform(),
     torchvision.transforms. ToPILImage(),
     torchvision.transforms.RandomResizedCrop(size=32, scale=(0.2, 1.0)),
-    torchvision.transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
+    # torchvision.transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
     torchvision.transforms.RandomGrayscale(p=0.2),
     torchvision.transforms.ToTensor()
 ])
@@ -338,10 +344,12 @@ def feature_loss(model, features_0, features_1, args, device, log_temp):
             
         # Z = model.norm_const()
         proba_norm_10 = proba_unorm_10 / (1* norm_constant_10.view(-1, 1)) 
-        proba_norm_01 = proba_unorm_01 / (1* norm_constant_01.view(-1, 1))      
+        proba_norm_01 = proba_unorm_01 / (1* norm_constant_01.view(-1, 1))
+        # loss = -torch.sum(torch.log(torch.diag(proba_norm_10)))
+        # loss += -torch.sum(torch.log(torch.diag(proba_norm_01)))      
         loss = torch.sum(torch.log(1.0 + 1.0 / torch.diag(proba_norm_10)))
         loss += torch.sum(torch.log(1.0 + 1.0 / torch.diag(proba_norm_01)))
-        return .5 * loss / batchsize
+        return loss / batchsize
 
         
     elif args.approach == "NCE":
@@ -625,6 +633,7 @@ def train_autoencoder(model, dl, args, device, model_path):
 
 def train(model, pair_dataloader, optimizer, scheduler, args, device, log_temp):
 
+    
     bar = Bar("UEL Training", max=len(pair_dataloader))
 
     model.train()
@@ -648,6 +657,19 @@ def train(model, pair_dataloader, optimizer, scheduler, args, device, log_temp):
 
         if args.no_mixup:
             batch_1_mixup = batch_1
+        elif args.mixup_uniform:
+            with torch.no_grad():
+                batch_sz = len(batch_0)
+
+                # random permutation
+                index = np.random.choice(batch_sz, replace=False, size=batch_sz)
+                batch_0_shuffled = batch_0[index, :, :, :]
+
+                beta = np.random.uniform(size=batch_sz)
+                beta_array = torch.tensor(beta, dtype=torch.float).to(device)
+                batch_1_mixup = (
+                    1.0 - beta_array.view(batch_sz, 1, 1, 1)
+                ) * batch_1 + beta_array.view(batch_sz, 1, 1, 1) * batch_0_shuffled
         else:
             with torch.no_grad():
                 batch_sz = len(batch_0)

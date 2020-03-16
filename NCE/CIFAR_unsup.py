@@ -84,7 +84,7 @@ parser.add_argument(
 
 
 parser.add_argument(
-    "--n-epoch", type=int, default=2000, help="number of epochs for model to train"
+    "--n-epoch", type=int, default=1500, help="number of epochs for model to train"
 )
 parser.add_argument(
     "--n-label",
@@ -101,6 +101,7 @@ parser.add_argument("--rand_aug", action="store_true", help="use random augmenta
 
 parser.add_argument("--ae_pretrain", action="store_true", help="apply ae pretraining")
 parser.add_argument("--nm", action="store_true", help="do negative mining")
+parser.add_argument("--mixup_uniform", action="store_true", help="use uniform random for mixup")
 
 parser.add_argument(
     "--nb_epoch_ae",
@@ -252,6 +253,35 @@ if device == "cuda" and args.m_gpu:
     model = MyDataParallel(model, device_ids=range(torch.cuda.device_count()))
     cudnn.benchmark = True
 
+
+def lr_lambda(epoch):
+    if epoch <= 800:
+        return 1
+    elif epoch > 800 and epoch <= 1100:
+        return 0.16666667
+    elif epoch > 1100 and epoch <= 1400:
+        return 0.0335
+    else:
+        return 0.01
+
+if args.approach == "learnable_tau":
+    # log_temp = torch.tensor(-2., device = device, requires_grad=True)
+    log_temp = torch.randn(1, device=device, requires_grad=True)
+    optimizer = torch.optim.SGD(
+        [{"params": model.parameters()}, {"params": log_temp, "lr": 0.001}],
+        lr=args.lr,
+        momentum=0.9,
+        weight_decay=5e-4,
+    )
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+
+else:
+    log_temp = torch.log(torch.tensor(0.1)).to(device)
+    optimizer = torch.optim.SGD(
+        model.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4
+    )
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+
 if len(args.resume) > 0:
     # Load checkpoint.
     print("==> Resuming from checkpoint..")
@@ -263,6 +293,12 @@ if len(args.resume) > 0:
     print(old_model_path)
     print(old_base_path)
     model.load_state_dict(checkpoint["model"])
+    optimizer.load_state_dict(checkpoint["optimizer"])
+    for state in optimizer.state.values():
+            for k, v in state.items():
+                if isinstance(v, torch.Tensor):
+                    state[k] = v.to(device)
+
     best_acc = checkpoint["acc"]
     start_epoch = checkpoint["epoch"] + 1
     print(f"We are starting from epoch: {start_epoch} and best acc is {best_acc}")
@@ -285,29 +321,28 @@ else:
 
 model.to(device)
 
-if args.dataset == "cifar":
+# if args.dataset == "cifar":
 
-    if args.nm:
-        def lr_lambda(epoch):
-            if epoch < 400:
-                return 1
-            elif epoch >= 400 and epoch < 500:
-                return 0.16666667
-            elif epoch >= 500 and epoch < 600:
-                return 0.0335
-            else:
-                return 0.01
-    else:
-        def lr_lambda(epoch):
-            if epoch < 1210:
-                return 1
-            elif epoch >= 1210 and epoch < 1510:
-                return 0.16666667
-            elif epoch >= 1510 and epoch < 1810:
-                return 0.0335
-            else:
-                return 0.01
-
+#     if args.nm:
+#         def lr_lambda(epoch):
+#             if epoch < 400:
+#                 return 1
+#             elif epoch >= 400 and epoch < 500:
+#                 return 0.16666667
+#             elif epoch >= 500 and epoch < 600:
+#                 return 0.0335
+#             else:
+#                 return 0.01
+#     else:
+#         def lr_lambda(epoch):
+#             if epoch < 1210:
+#                 return 1
+#             elif epoch >= 1210 and epoch < 1510:
+#                 return 0.16666667
+#             elif epoch >= 1510 and epoch < 1810:
+#                 return 0.0335
+#             else:
+#                 return 0.01
 
 if args.dataset == "stl":
 
@@ -330,23 +365,7 @@ def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-if args.approach == "learnable_tau":
-    # log_temp = torch.tensor(-2., device = device, requires_grad=True)
-    log_temp = torch.randn(1, device=device, requires_grad=True)
-    optimizer = torch.optim.SGD(
-        [{"params": model.parameters()}, {"params": log_temp, "lr": 0.001}],
-        lr=args.lr,
-        momentum=0.9,
-        weight_decay=5e-4,
-    )
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
-else:
-    log_temp = torch.log(torch.tensor(0.1)).to(device)
-    optimizer = torch.optim.SGD(
-        model.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4
-    )
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
 
 # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=args.lr_factor,
@@ -412,11 +431,16 @@ for epoch in range(start_epoch, args.n_epoch):
         label_pred = label_prop(sp_affinity_matrix, labels_index, labels, 0.95)
         lp_accuracy = compute_accuracy(label_pred, labels_index_test, labels_test)
 
-    if acc_knn > best_acc:
-        print("Saving..")
-        state = {"model": model.state_dict(), "acc": acc_knn, "epoch": epoch}
-        torch.save(state, model_path)
-        best_acc = acc_knn
+    # if acc_knn > best_acc:
+    print("Saving..")
+    state = {"model": model.state_dict(), "acc": acc_knn, "epoch": epoch, "optimizer": optimizer.state_dict()}
+    torch.save(state, model_path)
+    best_acc = acc_knn
+
+    # if epoch == 299:
+    #     state = {"model": model.state_dict(), "acc": acc_knn, "epoch": epoch, "optimizer": optimizer.state_dict()}
+    #     torch.save(state, model_path+'_300')
+
 
     if args.dataset == "cifar":
         with torch.no_grad():
