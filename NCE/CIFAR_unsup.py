@@ -21,6 +21,8 @@ from helper import *
 from LP import *
 
 import copy
+import os 
+os.environ['USE_DAAL4PY_SKLEARN'] = 'YES'
 
 parser = argparse.ArgumentParser(description="unsupervised embedding training with NCE")
 parser.add_argument(
@@ -424,6 +426,11 @@ for epoch in range(start_epoch, args.n_epoch):
     # acc_knn = knn_accuracy(train_results["features"], train_results["labels"],
     #                       feature_test, label_test)
     acc_knn = knn_accuracy(feature_train, label_train, feature_test, label_test)
+    acc_logistic = logistic_accuracy(feature_train, label_train, feature_test, label_test)
+    print(f"logistic accuracy is {acc_logistic[0]:.4f} and time taken {acc_logistic[1]:.4f}")
+
+    # acc_mlp = mlp_accuracy(feature_train, label_train, feature_test, label_test)
+    # print(f"logistic accuracy is {acc_mlp[0]:.4f} and time taken {acc_mlp[1]:.4f}")
 
     if args.dataset == "cifar":
         sp_affinity_matrix = build_affinity(feature_train)

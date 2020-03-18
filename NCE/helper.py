@@ -10,6 +10,10 @@ from progress.bar import Bar as Bar
 import torch.nn as nn
 from imgaug import augmenters as iaa
 import imgaug as ia
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.neural_network import MLPClassifier
+import time
 
 
 def generate_subset_of_CIFAR_for_ssl(
@@ -67,9 +71,11 @@ def generate_subset_of_CIFAR_for_ssl(
 
 # Custom dataset
 
+
 class CIFARNegativeMining(torchvision.datasets.CIFAR10):
     """CIFAR10Instance Dataset.
     """
+
     def __init__(self, nn_index_mat, *args, **kwargs):
         super(CIFARNegativeMining, self).__init__(*args, **kwargs)
         if self.train:
@@ -83,10 +89,22 @@ class CIFARNegativeMining(torchvision.datasets.CIFAR10):
             img2, img3 = self.data[index1], self.data[index2]
             # doing this so that it is consistent with all other datasets
             # to return a PIL Image
-            img1, img2, img3 = Image.fromarray(img1), Image.fromarray(img2), Image.fromarray(img3)
+            img1, img2, img3 = (
+                Image.fromarray(img1),
+                Image.fromarray(img2),
+                Image.fromarray(img3),
+            )
 
-            img1_v1, img2_v1, img3_v1 = self.transform(img1), self.transform(img2), self.transform(img3)
-            img1_v2, img2_v2, img3_v2 = self.transform(img1), self.transform(img2), self.transform(img3)
+            img1_v1, img2_v1, img3_v1 = (
+                self.transform(img1),
+                self.transform(img2),
+                self.transform(img3),
+            )
+            img1_v2, img2_v2, img3_v2 = (
+                self.transform(img1),
+                self.transform(img2),
+                self.transform(img3),
+            )
 
             return img1_v1, img2_v1, img3_v1, img1_v2, img2_v2, img3_v2, target, index
 
@@ -96,7 +114,6 @@ class CIFARNegativeMining(torchvision.datasets.CIFAR10):
             img1 = self.transform(img)
 
             return img1, target, index
-
 
 
 class CIFAR10_pairs(torchvision.datasets.CIFAR10):
@@ -134,7 +151,7 @@ class STL10_pairs(torchvision.datasets.STL10):
 #                                      iaa.CoarseDropout(0.1, size_percent=0.5)])),
 #             iaa.AddToHueAndSaturation(value=(-10, 10), per_channel=True)
 #         ])
-      
+
 #     def __call__(self, img):
 #         img = np.array(img)
 #         return self.aug.augment_image(img)
@@ -149,63 +166,83 @@ class STL10_pairs(torchvision.datasets.STL10):
 
 
 sometimes = lambda aug: iaa.Sometimes(0.5, aug)
+
+
 class ImgAugTransform:
     def __init__(self):
-        self.aug = iaa.Sequential([
-#             iaa.Resize((224, 224)),
-            # iaa.Sometimes(0.25, iaa.GaussianBlur(sigma=(0, 3.0))),
-            iaa.Fliplr(0.5),
-#             iaa.Flipud(0.1), # vertically flip 20% of all images
-            iaa.Affine(rotate=(-5, 5),  
-                       shear=(-3, 3), 
-                       translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)},
-                       mode='symmetric'),
-            # iaa.SaltAndPepper(p=(0, 0.03)),
-#             iaa.Sometimes(0.1,
-#                           iaa.OneOf([iaa.Dropout(p=(0, 0.1)),
-#                                      iaa.CoarseDropout(0.1, size_percent=0.5)])),
-            
-#             iaa.LinearContrast((0.5, 2.0), per_channel=0.5),
-#             sometimes(
-#                     iaa.ElasticTransformation(alpha=(0.5, 3.5), sigma=0.25)
-#                 ),
-#             iaa.Grayscale(alpha=(0.0, 1.0)),
-            # sometimes(iaa.PiecewiseAffine(scale=(0.01, 0.05))),
-#             iaa.Multiply((0.8, 1.2), per_channel=0.2),
-#             iaa.ContrastNormalization((0.75, 1.5)),
-            
-#             iaa.AddToHueAndSaturation(value=(-10, 10), per_channel=True)
-        ], random_order=True)
-        self.aug2 = iaa.Sequential([
-#             iaa.Scale((224, 224)),
-            iaa.Sometimes(0.25, iaa.GaussianBlur(sigma=(0, 3.0))),
-            iaa.Fliplr(0.5),
-            iaa.Affine(rotate=(-20, 20), mode='symmetric'),
-            iaa.Sometimes(0.25,
-                          iaa.OneOf([iaa.Dropout(p=(0, 0.1)),
-                                     iaa.CoarseDropout(0.1, size_percent=0.5)])),
-            iaa.AddToHueAndSaturation(value=(-10, 10), per_channel=True)
-        ])
+        self.aug = iaa.Sequential(
+            [
+                #             iaa.Resize((224, 224)),
+                # iaa.Sometimes(0.25, iaa.GaussianBlur(sigma=(0, 3.0))),
+                iaa.Fliplr(0.5),
+                #             iaa.Flipud(0.1), # vertically flip 20% of all images
+                iaa.Affine(
+                    rotate=(-5, 5),
+                    shear=(-3, 3),
+                    translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)},
+                    mode="symmetric",
+                ),
+                # iaa.SaltAndPepper(p=(0, 0.03)),
+                #             iaa.Sometimes(0.1,
+                #                           iaa.OneOf([iaa.Dropout(p=(0, 0.1)),
+                #                                      iaa.CoarseDropout(0.1, size_percent=0.5)])),
+                #             iaa.LinearContrast((0.5, 2.0), per_channel=0.5),
+                #             sometimes(
+                #                     iaa.ElasticTransformation(alpha=(0.5, 3.5), sigma=0.25)
+                #                 ),
+                #             iaa.Grayscale(alpha=(0.0, 1.0)),
+                # sometimes(iaa.PiecewiseAffine(scale=(0.01, 0.05))),
+                #             iaa.Multiply((0.8, 1.2), per_channel=0.2),
+                #             iaa.ContrastNormalization((0.75, 1.5)),
+                #             iaa.AddToHueAndSaturation(value=(-10, 10), per_channel=True)
+            ],
+            random_order=True,
+        )
+        self.aug2 = iaa.Sequential(
+            [
+                #             iaa.Scale((224, 224)),
+                iaa.Sometimes(0.25, iaa.GaussianBlur(sigma=(0, 3.0))),
+                iaa.Fliplr(0.5),
+                iaa.Affine(rotate=(-20, 20), mode="symmetric"),
+                iaa.Sometimes(
+                    0.25,
+                    iaa.OneOf(
+                        [
+                            iaa.Dropout(p=(0, 0.1)),
+                            iaa.CoarseDropout(0.1, size_percent=0.5),
+                        ]
+                    ),
+                ),
+                iaa.AddToHueAndSaturation(value=(-10, 10), per_channel=True),
+            ]
+        )
 
-        self.aug3 = iaa.Sequential([
-#             iaa.Scale((224, 224)),
-            iaa.RandAugment(n=2, m=9)
-        ])
-      
+        self.aug3 = iaa.Sequential(
+            [
+                #             iaa.Scale((224, 224)),
+                iaa.RandAugment(n=2, m=9)
+            ]
+        )
+
     def __call__(self, img):
         img = np.array(img)
         return self.aug3(image=img)
-#         return self.aug1.augment_image(img)
-        # return self.aug.augment_image(img)
 
-tfs = torchvision.transforms.Compose([
-    ImgAugTransform(),
-    torchvision.transforms. ToPILImage(),
-    torchvision.transforms.RandomResizedCrop(size=32, scale=(0.2, 1.0)),
-    # torchvision.transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
-    torchvision.transforms.RandomGrayscale(p=0.2),
-    torchvision.transforms.ToTensor()
-])
+
+#         return self.aug1.augment_image(img)
+# return self.aug.augment_image(img)
+
+tfs = torchvision.transforms.Compose(
+    [
+        ImgAugTransform(),
+        torchvision.transforms.ToPILImage(),
+        torchvision.transforms.RandomResizedCrop(size=32, scale=(0.2, 1.0)),
+        # torchvision.transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
+        torchvision.transforms.RandomGrayscale(p=0.2),
+        torchvision.transforms.ToTensor(),
+    ]
+)
+
 
 class CutOut(object):
     """
@@ -332,26 +369,27 @@ def feature_loss(model, features_0, features_1, args, device, log_temp):
         proba_unorm_11 = torch.exp(sim_11 / temp)
 
         norm_constant_10 = (
-                torch.sum(proba_unorm_10, axis=1)
-                + torch.sum(proba_unorm_11, axis=1)
-                - torch.diag(proba_unorm_11) - torch.diag(proba_unorm_10)
-            )
+            torch.sum(proba_unorm_10, axis=1)
+            + torch.sum(proba_unorm_11, axis=1)
+            - torch.diag(proba_unorm_11)
+            - torch.diag(proba_unorm_10)
+        )
         norm_constant_01 = (
-                torch.sum(proba_unorm_01, axis=1)
-                + torch.sum(proba_unorm_00, axis=1)
-                - torch.diag(proba_unorm_00) - torch.diag(proba_unorm_01)
-            )
-            
+            torch.sum(proba_unorm_01, axis=1)
+            + torch.sum(proba_unorm_00, axis=1)
+            - torch.diag(proba_unorm_00)
+            - torch.diag(proba_unorm_01)
+        )
+
         # Z = model.norm_const()
-        proba_norm_10 = proba_unorm_10 / (1* norm_constant_10.view(-1, 1)) 
-        proba_norm_01 = proba_unorm_01 / (1* norm_constant_01.view(-1, 1))
+        proba_norm_10 = proba_unorm_10 / (1 * norm_constant_10.view(-1, 1))
+        proba_norm_01 = proba_unorm_01 / (1 * norm_constant_01.view(-1, 1))
         # loss = -torch.sum(torch.log(torch.diag(proba_norm_10)))
-        # loss += -torch.sum(torch.log(torch.diag(proba_norm_01)))      
+        # loss += -torch.sum(torch.log(torch.diag(proba_norm_01)))
         loss = torch.sum(torch.log(1.0 + 1.0 / torch.diag(proba_norm_10)))
         loss += torch.sum(torch.log(1.0 + 1.0 / torch.diag(proba_norm_01)))
         return loss / batchsize
 
-        
     elif args.approach == "NCE":
         temp = 0.1  # temparture patameter
         proba_unorm_10 = torch.exp(sim_10 / temp)
@@ -593,7 +631,8 @@ def train_autoencoder(model, dl, args, device, model_path):
     # optimizer = torch.optim.SGD(
     #     model.parameters(), lr=args.lr, momentum=0.9, weight_decay=0.00001)
     optimizer = torch.optim.Adam(
-        model.parameters(), lr=args.ae_lr, weight_decay=0.00001)
+        model.parameters(), lr=args.ae_lr, weight_decay=0.00001
+    )
 
     def lr_lambda_ae(epoch):
         if epoch < 50:
@@ -633,7 +672,6 @@ def train_autoencoder(model, dl, args, device, model_path):
 
 def train(model, pair_dataloader, optimizer, scheduler, args, device, log_temp):
 
-    
     bar = Bar("UEL Training", max=len(pair_dataloader))
 
     model.train()
@@ -744,6 +782,42 @@ def knn_accuracy(feature_nn, label_nn, feature_test, label_test):
     pred_knn = np.argmax(proba_knn, axis=1)
     accuracy = np.mean(pred_knn == label_test)
     return accuracy
+
+
+def logistic_accuracy(feature_nn, label_nn, feature_test, label_test):
+
+    start = time.time()
+    sc_x = StandardScaler()
+    feature_nn = sc_x.fit_transform(feature_nn)
+    feature_test = sc_x.transform(feature_test)
+    clf = LogisticRegression(
+        random_state=0,
+        n_jobs=-1,
+        solver="sag",
+        multi_class="multinomial",
+        max_iter=200,
+    )
+    clf.fit(feature_nn, label_nn)
+    pred_logistic = clf.predict(feature_test)
+    accuracy = np.mean(pred_logistic == label_test)
+    time_taken = time.time() - start
+    return accuracy, time_taken
+
+
+def mlp_accuracy(feature_nn, label_nn, feature_test, label_test):
+
+    start = time.time()
+    sc_x = StandardScaler()
+    feature_nn = sc_x.fit_transform(feature_nn)
+    feature_test = sc_x.transform(feature_test)
+    clf = MLPClassifier(
+        solver="adam", alpha=1e-5, hidden_layer_sizes=(20,), random_state=1
+    )
+    clf.fit(feature_nn, label_nn)
+    pred_logistic = clf.predict(feature_test)
+    accuracy = np.mean(pred_logistic == label_test)
+    time_taken = time.time() - start
+    return accuracy, time_taken
 
 
 class MyDataParallel(nn.DataParallel):
