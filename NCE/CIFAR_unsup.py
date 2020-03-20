@@ -281,6 +281,45 @@ if device == "cuda" and args.m_gpu:
 #     else:
 #         return 0.01
 
+if args.dataset == "cifar":
+
+    if args.nm:
+        def lr_lambda(epoch):
+            if epoch < 403:
+                return 1
+            elif epoch >= 403 and epoch < 503:
+                return 0.16666667
+            elif epoch >= 503 and epoch < 603:
+                return 0.0335
+            else:
+                return 0.01
+    else:
+        def lr_lambda(epoch):
+            if epoch < 1210:
+                return 1
+            elif epoch >= 1210 and epoch < 1510:
+                return 0.16666667
+            elif epoch >= 1510 and epoch < 1810:
+                return 0.0335
+            else:
+                return 0.01
+
+if args.dataset == "stl":
+
+    def lr_lambda(epoch):
+        if epoch < 60:
+            return 1
+        elif epoch >= 60 and epoch < 100:
+            return 0.05
+        elif epoch >= 100 and epoch < 120:
+            return 0.01
+        elif epoch >= 120 and epoch < 140:
+            return 0.005
+        elif epoch >= 120 and epoch < 140:
+            return 0.001
+        else:
+            return 0.0001
+
 if args.approach == "learnable_tau":
     # log_temp = torch.tensor(-2., device = device, requires_grad=True)
     log_temp = torch.randn(1, device=device, requires_grad=True)
@@ -338,46 +377,6 @@ else:
 
 model.to(device)
 
-if args.dataset == "cifar":
-
-    if args.nm:
-        def lr_lambda(epoch):
-            if epoch < 400:
-                return 1
-            elif epoch >= 400 and epoch < 500:
-                return 0.16666667
-            elif epoch >= 500 and epoch < 600:
-                return 0.0335
-            else:
-                return 0.01
-    else:
-        def lr_lambda(epoch):
-            if epoch < 1210:
-                return 1
-            elif epoch >= 1210 and epoch < 1510:
-                return 0.16666667
-            elif epoch >= 1510 and epoch < 1810:
-                return 0.0335
-            else:
-                return 0.01
-
-if args.dataset == "stl":
-
-    def lr_lambda(epoch):
-        if epoch < 60:
-            return 1
-        elif epoch >= 60 and epoch < 100:
-            return 0.05
-        elif epoch >= 100 and epoch < 120:
-            return 0.01
-        elif epoch >= 120 and epoch < 140:
-            return 0.005
-        elif epoch >= 120 and epoch < 140:
-            return 0.001
-        else:
-            return 0.0001
-
-
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
@@ -411,7 +410,8 @@ for epoch in range(start_epoch, args.n_epoch):
     if args.nm:
         # if epoch <=1:
         #     train_results = train(model, dataloader_train_pairs, optimizer, scheduler, args, device, log_temp)
-        if epoch % 2 == 0:
+        if epoch % 2 == 0 or len(args.resume) > 0 :
+            args.resume = []
             feature_mat, label_arr = extract_features(dataloader_trainnoaugment, model, device)
             index = faiss.IndexFlatIP(128)
             index.add(feature_mat)
@@ -419,7 +419,7 @@ for epoch in range(start_epoch, args.n_epoch):
 
             trainset_nm = CIFARNegativeMining(indices, root='./data', train=True, download=True,
                                                 transform=train_augment)
-            trainloader_nm = torch.utils.data.DataLoader(trainset_nm, batch_size=170, shuffle=True, num_workers=20,
+            trainloader_nm = torch.utils.data.DataLoader(trainset_nm, batch_size=args.batch_size, shuffle=True, num_workers=20,
                                                     drop_last=True)
         train_results = train(model, trainloader_nm, optimizer, scheduler, args, device, log_temp)
         
