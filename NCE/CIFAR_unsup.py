@@ -7,7 +7,6 @@ import logging
 # from NCE.LP import *
 import os
 import sys
-from RandAugment import RandAugment
 
 # Define temparature
 import torch
@@ -88,7 +87,7 @@ parser.add_argument(
 
 
 parser.add_argument(
-    "--n-epoch", type=int, default=1500, help="number of epochs for model to train"
+    "--n-epoch", type=int, default=2000, help="number of epochs for model to train"
 )
 parser.add_argument(
     "--n-label",
@@ -124,9 +123,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 base_path = args.log_dir + args.name + "/"  # example --  "./log/nce_vanila/"
 log_path = os.path.join(base_path, "log.txt")  # example --  "./log/nce_vanila/log.txt"
 
-all_log_path = os.path.join(base_path, "log_all.txt")
-logging.basicConfig(level=logging.INFO,filename=all_log_path)
-logger_all = logging.getLogger(__name__)
 
 model_path = os.path.join(
     base_path, "model_ckpt.t"
@@ -138,6 +134,9 @@ print(f"rand_aug flag: {args.rand_aug}")
 if not os.path.isdir(base_path):
     os.makedirs(base_path)
 # writer = SummaryWriter(base_path)
+all_log_path = os.path.join(base_path, "log_all.txt")
+logging.basicConfig(level=logging.INFO,filename=all_log_path)
+logger_all = logging.getLogger(__name__)
 
 base = "./data/"
 download = True
