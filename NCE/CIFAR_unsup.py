@@ -271,15 +271,15 @@ if device == "cuda" and args.m_gpu:
 #         return 0.0335
 #     else:
 #         return 0.01
-def lr_lambda(epoch):
-    if epoch < 1210:
-        return 1
-    elif epoch >= 1210 and epoch < 1510:
-        return 0.16666667
-    elif epoch >= 1510 and epoch < 1810:
-        return 0.0335
-    else:
-        return 0.01
+# def lr_lambda(epoch):
+#     if epoch < 1210:
+#         return 1
+#     elif epoch >= 1210 and epoch < 1510:
+#         return 0.16666667
+#     elif epoch >= 1510 and epoch < 1810:
+#         return 0.0335
+#     else:
+#         return 0.01
 
 if args.approach == "learnable_tau":
     # log_temp = torch.tensor(-2., device = device, requires_grad=True)
@@ -338,28 +338,28 @@ else:
 
 model.to(device)
 
-# if args.dataset == "cifar":
+if args.dataset == "cifar":
 
-#     if args.nm:
-#         def lr_lambda(epoch):
-#             if epoch < 400:
-#                 return 1
-#             elif epoch >= 400 and epoch < 500:
-#                 return 0.16666667
-#             elif epoch >= 500 and epoch < 600:
-#                 return 0.0335
-#             else:
-#                 return 0.01
-#     else:
-#         def lr_lambda(epoch):
-#             if epoch < 1210:
-#                 return 1
-#             elif epoch >= 1210 and epoch < 1510:
-#                 return 0.16666667
-#             elif epoch >= 1510 and epoch < 1810:
-#                 return 0.0335
-#             else:
-#                 return 0.01
+    if args.nm:
+        def lr_lambda(epoch):
+            if epoch < 400:
+                return 1
+            elif epoch >= 400 and epoch < 500:
+                return 0.16666667
+            elif epoch >= 500 and epoch < 600:
+                return 0.0335
+            else:
+                return 0.01
+    else:
+        def lr_lambda(epoch):
+            if epoch < 1210:
+                return 1
+            elif epoch >= 1210 and epoch < 1510:
+                return 0.16666667
+            elif epoch >= 1510 and epoch < 1810:
+                return 0.0335
+            else:
+                return 0.01
 
 if args.dataset == "stl":
 
