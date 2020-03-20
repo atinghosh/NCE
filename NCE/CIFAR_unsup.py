@@ -1,5 +1,6 @@
 import argparse
 import math
+import logging
 
 # import NCE.unsupervised_feature_model as unsupervised_feature_model
 # from NCE.helper import *
@@ -23,6 +24,7 @@ from LP import *
 import copy
 import os 
 os.environ['USE_DAAL4PY_SKLEARN'] = 'YES'
+
 
 parser = argparse.ArgumentParser(description="unsupervised embedding training with NCE")
 parser.add_argument(
@@ -121,6 +123,11 @@ os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 
 base_path = args.log_dir + args.name + "/"  # example --  "./log/nce_vanila/"
 log_path = os.path.join(base_path, "log.txt")  # example --  "./log/nce_vanila/log.txt"
+
+all_log_path = os.path.join(base_path, "log_all.txt")
+logging.basicConfig(level=logging.INFO,filename=all_log_path)
+logger_all = logging.getLogger(__name__)
+
 model_path = os.path.join(
     base_path, "model_ckpt.t"
 )  # example --  "./log/nce_vanila/model_ckpt.t"
@@ -256,12 +263,21 @@ if device == "cuda" and args.m_gpu:
     cudnn.benchmark = True
 
 
+# def lr_lambda(epoch):
+#     if epoch <= 800:
+#         return 1
+#     elif epoch > 800 and epoch <= 1100:
+#         return 0.16666667
+#     elif epoch > 1100 and epoch <= 1400:
+#         return 0.0335
+#     else:
+#         return 0.01
 def lr_lambda(epoch):
-    if epoch <= 800:
+    if epoch < 1210:
         return 1
-    elif epoch > 800 and epoch <= 1100:
+    elif epoch >= 1210 and epoch < 1510:
         return 0.16666667
-    elif epoch > 1100 and epoch <= 1400:
+    elif epoch >= 1510 and epoch < 1810:
         return 0.0335
     else:
         return 0.01
@@ -426,11 +442,14 @@ for epoch in range(start_epoch, args.n_epoch):
     # acc_knn = knn_accuracy(train_results["features"], train_results["labels"],
     #                       feature_test, label_test)
     acc_knn = knn_accuracy(feature_train, label_train, feature_test, label_test)
-    acc_logistic = logistic_accuracy(feature_train, label_train, feature_test, label_test)
-    print(f"logistic accuracy is {acc_logistic[0]:.4f} and time taken {acc_logistic[1]:.4f}")
+    if epoch == args.n_epoch-1:
+        acc_logistic = logistic_accuracy(feature_train, label_train, feature_test, label_test)
+        logger_all.info(f"logistic accuracy is {acc_logistic[0]:.4f} and time taken {acc_logistic[1]:.4f}")
 
-    # acc_mlp = mlp_accuracy(feature_train, label_train, feature_test, label_test)
-    # print(f"logistic accuracy is {acc_mlp[0]:.4f} and time taken {acc_mlp[1]:.4f}")
+        acc_mlp = mlp_accuracy(feature_train, label_train, feature_test, label_test)
+        logger_all.info(f"logistic accuracy is {acc_mlp[0]:.4f} and time taken {acc_mlp[1]:.4f}")
+
+    
 
     if args.dataset == "cifar":
         sp_affinity_matrix = build_affinity(feature_train)

@@ -14,6 +14,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.neural_network import MLPClassifier
 import time
+import logging
+logger_all = logging.getLogger(__name__)
 
 
 def generate_subset_of_CIFAR_for_ssl(
@@ -384,10 +386,10 @@ def feature_loss(model, features_0, features_1, args, device, log_temp):
         # Z = model.norm_const()
         proba_norm_10 = proba_unorm_10 / (1 * norm_constant_10.view(-1, 1))
         proba_norm_01 = proba_unorm_01 / (1 * norm_constant_01.view(-1, 1))
-        # loss = -torch.sum(torch.log(torch.diag(proba_norm_10)))
-        # loss += -torch.sum(torch.log(torch.diag(proba_norm_01)))
-        loss = torch.sum(torch.log(1.0 + 1.0 / torch.diag(proba_norm_10)))
-        loss += torch.sum(torch.log(1.0 + 1.0 / torch.diag(proba_norm_01)))
+        loss = -torch.sum(torch.log(torch.diag(proba_norm_10)))
+        loss += -torch.sum(torch.log(torch.diag(proba_norm_01)))
+        # loss = torch.sum(torch.log(1.0 + 1.0 / torch.diag(proba_norm_10)))
+        # loss += torch.sum(torch.log(1.0 + 1.0 / torch.diag(proba_norm_01)))
         return loss / batchsize
 
     elif args.approach == "NCE":
@@ -752,7 +754,10 @@ def train(model, pair_dataloader, optimizer, scheduler, args, device, log_temp):
             f"({batch_id}/{len(pair_dataloader)}) | ETA: {bar.eta_td} | Loss: {loss.item():.4f} | "
             f"Avg. Loss: {np.mean(np.array(train_loss_list)):.4f} | temp:{temp.item():.2f}"
         )
+        logger_all.info(f"({batch_id}/{len(pair_dataloader)}) | ETA: {bar.eta_td} | Loss: {loss.item():.4f} | "
+            f"Avg. Loss: {np.mean(np.array(train_loss_list)):.4f} | temp:{temp.item():.2f}")
         bar.next()
+        
         # save the features for later analysis
         # if first_batch:
         #     first_batch = False
@@ -793,9 +798,9 @@ def logistic_accuracy(feature_nn, label_nn, feature_test, label_test):
     clf = LogisticRegression(
         random_state=0,
         n_jobs=-1,
-        solver="sag",
+        solver="lbfgs",
         multi_class="multinomial",
-        max_iter=200,
+        max_iter=500,
     )
     clf.fit(feature_nn, label_nn)
     pred_logistic = clf.predict(feature_test)
@@ -916,3 +921,140 @@ class LoggerMonitor(object):
             legend_text += plot_overlap(logger, names)
         plt.legend(legend_text, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
         plt.grid(True)
+
+class FineTuned(nn.Module):
+        def __init__(self, fc):
+            super(FineTuned, self).__init__()
+            self.fc = fc
+            self.final_layer = nn.Linear(128, 10)
+        
+        def forward(self, x):
+            x = self.fc(x)
+            return self.final_layer(x)
+
+if __name__ == "__main__":
+    import unsupervised_feature_model
+    from torch.utils.data import SubsetRandomSampler
+    device = 'cuda'
+    net = unsupervised_feature_model.resnet_original()
+    net = MyDataParallel(net)
+    # path = 'log/sim_CLR_original/model_ckpt.t'
+    path = 'log/rahul/model_ckpt.t'
+    checkpoint = torch.load(path)
+    net.load_state_dict(checkpoint['model'])
+    (
+        labels_index,
+        labels,
+        labels_index_test,
+        labels_test,
+    ) = generate_subset_of_CIFAR_for_ssl(5000, 250 // 10, 1)
+    train_augment = torchvision.transforms.Compose(
+        [
+            torchvision.transforms.RandomResizedCrop(size=(32, 32), scale=(0.6, 1.0)),
+            torchvision.transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
+            torchvision.transforms.RandomGrayscale(p=0.2),
+            torchvision.transforms.RandomHorizontalFlip(),
+            torchvision.transforms.ToTensor(),
+        ]
+    )
+    test_augment = torchvision.transforms.Compose([torchvision.transforms.ToTensor()])
+
+    train_dataset = torchvision.datasets.CIFAR10(
+        "./data/", train=True, transform=train_augment, download=False
+    )
+    label_sampler = SubsetRandomSampler(labels_index)
+    train_dl = torch.utils.data.DataLoader(train_dataset, 50, sampler=label_sampler)
+    
+    cifar_test_dataset = torchvision.datasets.CIFAR10(
+        "./data/", train=False, transform=test_augment, download=False
+    )
+    dataloader_test = torch.utils.data.DataLoader(
+        cifar_test_dataset,
+        batch_size=100,
+        shuffle=False,
+        num_workers=10,
+    )
+    
+    
+
+    # def get_accuracy(net, test_dl):
+    #     net.eval()
+    #     test_pred = []
+    #     for batch_id, (im, label) in train_dl:
+    #         im, label = im.to(devie), label.to(device)
+    #         output = net(im)
+
+
+    final_net = FineTuned(net).to(device)
+    sup_loss_criterion = nn.CrossEntropyLoss()
+    opt = torch.optim.SGD(final_net.parameters(), lr=.01, momentum=.9, weight_decay=.0001)
+    # train_loss = []
+    # for batch_id, (im, label) in enumerate(train_dl):
+    #     im, label = im.to(device), label.to(device)
+    #     output = final_net(im)
+    #     sup_loss = sup_loss_criterion(output, label)
+    #     opt.zero_grad()
+    #     sup_loss.backward()
+    #     opt.step()
+    #     train_loss.append(sup_loss.item())
+    #     if batch_id % 2:
+    #         print(f"Loss is {np.mean(np.array(train_loss)):.4f}")
+
+    from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
+    from ignite.metrics import Accuracy, Loss, RunningAverage, ConfusionMatrix
+    from ignite.handlers import ModelCheckpoint, EarlyStopping
+
+    # defining the number of epochs
+    epochs = 20
+    # creating trainer,evaluator
+    trainer = create_supervised_trainer(final_net, opt, sup_loss_criterion, device=device)
+    metrics = {
+        'accuracy':Accuracy(),
+        'nll':Loss(sup_loss_criterion),
+        'cm':ConfusionMatrix(num_classes=10)
+    }
+    train_evaluator = create_supervised_evaluator(final_net, metrics=metrics, device=device)
+    val_evaluator = create_supervised_evaluator(final_net, metrics=metrics, device=device)
+    training_history = {'accuracy':[],'loss':[]}
+    validation_history = {'accuracy':[],'loss':[]}
+    last_epoch = []
+    RunningAverage(output_transform=lambda x: x).attach(trainer, 'loss')
+    def score_function(engine):
+        val_loss = engine.state.metrics['nll']
+        return -val_loss
+
+    handler = EarlyStopping(patience=10, score_function=score_function, trainer=trainer)
+    val_evaluator.add_event_handler(Events.COMPLETED, handler)
+
+
+    @trainer.on(Events.EPOCH_COMPLETED)
+    def log_training_results(trainer):
+        train_evaluator.run(train_dl)
+        metrics = train_evaluator.state.metrics
+        accuracy = metrics['accuracy']*100
+        loss = metrics['nll']
+        last_epoch.append(0)
+        training_history['accuracy'].append(accuracy)
+        training_history['loss'].append(loss)
+        print("Training Results - Epoch: {}  Avg accuracy: {:.2f} Avg loss: {:.2f}"
+            .format(trainer.state.epoch, accuracy, loss))
+
+    def log_validation_results(trainer):
+        val_evaluator.run(dataloader_test)
+        metrics = val_evaluator.state.metrics
+        accuracy = metrics['accuracy']*100
+        loss = metrics['nll']
+        validation_history['accuracy'].append(accuracy)
+        validation_history['loss'].append(loss)
+        print("Validation Results - Epoch: {}  Avg accuracy: {:.2f} Avg loss: {:.2f}"
+            .format(trainer.state.epoch, accuracy, loss))
+        
+    trainer.add_event_handler(Events.EPOCH_COMPLETED, log_validation_results)
+    trainer.run(train_dl, max_epochs=epochs)
+    print(validation_history['accuracy'])
+
+        
+
+
+
+
