@@ -1,28 +1,33 @@
 import argparse
-import math
+import copy
+# import math
 import logging
-
 # import NCE.unsupervised_feature_model as unsupervised_feature_model
 # from NCE.helper import *
 # from NCE.LP import *
 import os
-import sys
-
+import faiss
 # Define temparature
 import torch
 import torch.backends.cudnn as cudnn
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
+import torchvision
 
+import helper as hp
+import LP as lp
 # sys.path.append('/data2/atin/Pycharmprojects/SSL_LP/')
 # sys.path.append('/data02/Atin/LATEST/SSL_LABEL_PROPAGATION/')
 import unsupervised_feature_model
-from helper import *
-from LP import *
+# from helper import *
+# from LP import *
+from helper import tfs
 
-import copy
-import os 
-os.environ['USE_DAAL4PY_SKLEARN'] = 'YES'
+# import sys
+
+
+# from torch.utils.data import DataLoader
+# from torch.utils.tensorboard import SummaryWriter
+
+os.environ["USE_DAAL4PY_SKLEARN"] = "YES"
 
 
 parser = argparse.ArgumentParser(description="unsupervised embedding training with NCE")
@@ -51,7 +56,7 @@ parser.add_argument(
         "NCE_all_grad",
         "NCE_without_z",
         "learnable_tau",
-        "sim_CLR"
+        "sim_CLR",
     ],
     help="choice of loss to be used for embedding learning",
 )
@@ -104,7 +109,9 @@ parser.add_argument("--rand_aug", action="store_true", help="use random augmenta
 
 parser.add_argument("--ae_pretrain", action="store_true", help="apply ae pretraining")
 parser.add_argument("--nm", action="store_true", help="do negative mining")
-parser.add_argument("--mixup_uniform", action="store_true", help="use uniform random for mixup")
+parser.add_argument(
+    "--mixup_uniform", action="store_true", help="use uniform random for mixup"
+)
 
 parser.add_argument(
     "--nb_epoch_ae",
@@ -135,7 +142,7 @@ if not os.path.isdir(base_path):
     os.makedirs(base_path)
 # writer = SummaryWriter(base_path)
 all_log_path = os.path.join(base_path, "log_all.txt")
-logging.basicConfig(level=logging.INFO,filename=all_log_path)
+logging.basicConfig(level=logging.INFO, filename=all_log_path)
 logger_all = logging.getLogger(__name__)
 
 base = "./data/"
@@ -186,7 +193,7 @@ if args.dataset == "cifar":
     )
 
     # create a batch loader that outputs pairs of augmented images
-    cifar_train_pair_dataset = CIFAR10_pairs(
+    cifar_train_pair_dataset = hp.CIFAR10_pairs(
         base, train=True, transform=train_augment, download=False
     )
     # CREATE  BATCHLOADER
@@ -217,7 +224,7 @@ if args.dataset == "stl":
         base, split="test", transform=test_augment, download=True
     )
     # stl_train_dataset_noaugment = torch.utils.data.ConcatDataset([stl_train_dataset_noaugment, stl_test_dataset])
-    stl_train_pair_dataset = STL10_pairs(
+    stl_train_pair_dataset = hp.STL10_pairs(
         base, split="train+unlabeled", transform=train_augment, download=True
     )
     # stl_train_pair_dataset = STL10_pairs(base, split='train', transform=train_augment, download=True)
@@ -246,7 +253,9 @@ if args.dataset == "stl":
 if args.dataset == "cifar":
     if args.ae_pretrain:
         ae_model = unsupervised_feature_model.CifarAutoencoder().to(device)
-        train_autoencoder(ae_model, dataloader_trainnoaugment, args, device, model_path)
+        hp.train_autoencoder(
+            ae_model, dataloader_trainnoaugment, args, device, model_path
+        )
         model = unsupervised_feature_model.resnet_original()
         model = copy.deepcopy(ae_model.encoder)
     else:
@@ -258,7 +267,7 @@ else:
 
 if device == "cuda" and args.m_gpu:
     # print(torch.cuda.device_count())
-    model = MyDataParallel(model, device_ids=range(torch.cuda.device_count()))
+    model = hp.MyDataParallel(model, device_ids=range(torch.cuda.device_count()))
     cudnn.benchmark = True
 
 
@@ -284,6 +293,7 @@ if device == "cuda" and args.m_gpu:
 if args.dataset == "cifar":
 
     if args.nm:
+
         def lr_lambda(epoch):
             if epoch < 403:
                 return 1
@@ -293,7 +303,9 @@ if args.dataset == "cifar":
                 return 0.0335
             else:
                 return 0.01
+
     else:
+
         def lr_lambda(epoch):
             if epoch < 1210:
                 return 1
@@ -304,7 +316,8 @@ if args.dataset == "cifar":
             else:
                 return 0.01
 
-if args.dataset == "stl":
+
+else:
 
     def lr_lambda(epoch):
         if epoch < 60:
@@ -319,6 +332,7 @@ if args.dataset == "stl":
             return 0.001
         else:
             return 0.0001
+
 
 if args.approach == "learnable_tau":
     # log_temp = torch.tensor(-2., device = device, requires_grad=True)
@@ -351,9 +365,9 @@ if len(args.resume) > 0:
     model.load_state_dict(checkpoint["model"])
     optimizer.load_state_dict(checkpoint["optimizer"])
     for state in optimizer.state.values():
-            for k, v in state.items():
-                if isinstance(v, torch.Tensor):
-                    state[k] = v.to(device)
+        for k, v in state.items():
+            if isinstance(v, torch.Tensor):
+                state[k] = v.to(device)
 
     best_acc = checkpoint["acc"]
     start_epoch = checkpoint["epoch"] + 1
@@ -362,12 +376,12 @@ if len(args.resume) > 0:
     title = "CIFAR-10_NCE"
     old_log_path = os.path.join(old_base_path, "log.txt")
     assert os.path.isfile(old_log_path), "Error: no log file found!"
-    logger = Logger(old_log_path, title=title, resume=True)
+    logger = hp.Logger(old_log_path, title=title, resume=True)
 else:
     best_acc = 0
     start_epoch = 0
     title = "CIFAR-10_NCE"
-    logger = Logger(log_path, title=title)
+    logger = hp.Logger(log_path, title=title)
     if args.dataset == "cifar":
         logger.set_names(
             ["epoch", "LR", "Train Loss", "KNN acc", "LP acc", "time", "total_time"]
@@ -377,11 +391,9 @@ else:
 
 model.to(device)
 
+
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
-
-
-
 
 
 # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=args.lr_factor,
@@ -403,29 +415,46 @@ if args.dataset == "cifar":
         labels,
         labels_index_test,
         labels_test,
-    ) = generate_subset_of_CIFAR_for_ssl(5000, args.n_label // 10, 1)
+    ) = lp.generate_subset_of_CIFAR_for_ssl(5000, args.n_label // 10, 1)
 
 
 for epoch in range(start_epoch, args.n_epoch):
     if args.nm:
         # if epoch <=1:
         #     train_results = train(model, dataloader_train_pairs, optimizer, scheduler, args, device, log_temp)
-        if epoch % 2 == 0 or len(args.resume) > 0 :
+        print(args.resume)
+        if epoch % 2 == 0 or len(args.resume) > 0:
             args.resume = []
-            feature_mat, label_arr = extract_features(dataloader_trainnoaugment, model, device)
+            feature_mat, label_arr = hp.extract_features(
+                dataloader_trainnoaugment, model, device
+            )
             index = faiss.IndexFlatIP(128)
             index.add(feature_mat)
             distances, indices = index.search(feature_mat, 100)
 
-            trainset_nm = CIFARNegativeMining(indices, root='./data', train=True, download=True,
-                                                transform=train_augment)
-            trainloader_nm = torch.utils.data.DataLoader(trainset_nm, batch_size=args.batch_size, shuffle=True, num_workers=20,
-                                                    drop_last=True)
-        train_results = train(model, trainloader_nm, optimizer, scheduler, args, device, log_temp)
-        
+            trainset_nm = hp.CIFARNegativeMining(
+                indices,
+                root="./data",
+                train=True,
+                download=True,
+                transform=train_augment,
+            )
+            trainloader_nm = torch.utils.data.DataLoader(
+                trainset_nm,
+                batch_size=args.batch_size,
+                shuffle=True,
+                num_workers=20,
+                drop_last=True,
+            )
+        train_results = hp.train(
+            model, trainloader_nm, optimizer, scheduler, args, device, log_temp
+        )
+
     else:
-        train_results = train(model, dataloader_train_pairs, optimizer, scheduler, args, device, log_temp)
-    
+        train_results = hp.train(
+            model, dataloader_train_pairs, optimizer, scheduler, args, device, log_temp
+        )
+
     scheduler.step(epoch)
     # scheduler.step(train_results["avg_loss"])
     total_train_time += train_results["compute_time"]
@@ -434,38 +463,47 @@ for epoch in range(start_epoch, args.n_epoch):
     norm_const = model.norm_const().item()
 
     # KNN accuracy
-    feature_train, label_train = extract_features(
+    feature_train, label_train = hp.extract_features(
         dataloader_trainnoaugment, model, device
     )
-    feature_test, label_test = extract_features(dataloader_test, model, device)
+    feature_test, label_test = hp.extract_features(dataloader_test, model, device)
     # acc_knn = knn_accuracy(train_results["features"], train_results["labels"],
     #                       feature_test, label_test)
-    acc_knn = knn_accuracy(feature_train, label_train, feature_test, label_test)
-    if epoch == args.n_epoch-1:
-        acc_logistic = logistic_accuracy(feature_train, label_train, feature_test, label_test)
-        logger_all.info(f"logistic accuracy is {acc_logistic[0]:.4f} and time taken {acc_logistic[1]:.4f}")
+    acc_knn = hp.knn_accuracy(feature_train, label_train, feature_test, label_test)
+    if epoch == args.n_epoch - 1:
+        acc_logistic = hp.logistic_accuracy(
+            feature_train, label_train, feature_test, label_test
+        )
+        logger_all.info(
+            f"logistic accuracy is {acc_logistic[0]:.4f} and time taken {acc_logistic[1]:.4f}"
+        )
 
-        acc_mlp = mlp_accuracy(feature_train, label_train, feature_test, label_test)
-        logger_all.info(f"logistic accuracy is {acc_mlp[0]:.4f} and time taken {acc_mlp[1]:.4f}")
-
-    
+        acc_mlp = hp.mlp_accuracy(feature_train, label_train, feature_test, label_test)
+        logger_all.info(
+            f"mlp accuracy is {acc_mlp[0]:.4f} and time taken {acc_mlp[1]:.4f}"
+        )
 
     if args.dataset == "cifar":
-        sp_affinity_matrix = build_affinity(feature_train)
+        sp_affinity_matrix = lp.build_affinity(feature_train)
         n_total, _ = sp_affinity_matrix.shape
-        label_pred = label_prop(sp_affinity_matrix, labels_index, labels, 0.95)
-        lp_accuracy = compute_accuracy(label_pred, labels_index_test, labels_test)
+        label_pred = lp.label_prop(sp_affinity_matrix, labels_index, labels, 0.95)
+        lp_accuracy = lp.compute_accuracy(label_pred, labels_index_test, labels_test)
+        # hp.compute(n_toal)
 
     # if acc_knn > best_acc:
     print("Saving..")
-    state = {"model": model.state_dict(), "acc": acc_knn, "epoch": epoch, "optimizer": optimizer.state_dict()}
+    state = {
+        "model": model.state_dict(),
+        "acc": acc_knn,
+        "epoch": epoch,
+        "optimizer": optimizer.state_dict(),
+    }
     torch.save(state, model_path)
     best_acc = acc_knn
 
     # if epoch == 299:
     #     state = {"model": model.state_dict(), "acc": acc_knn, "epoch": epoch, "optimizer": optimizer.state_dict()}
     #     torch.save(state, model_path+'_300')
-
 
     if args.dataset == "cifar":
         with torch.no_grad():

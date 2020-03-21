@@ -3,7 +3,6 @@ import numpy as np
 import torch
 import torchvision
 import torchvision.transforms as transforms
-from numpy.linalg import multi_dot
 from scipy.sparse import csr_matrix, diags, identity
 from scipy.sparse.linalg import cg
 

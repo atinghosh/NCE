@@ -9,12 +9,11 @@ from PIL import Image
 from progress.bar import Bar as Bar
 import torch.nn as nn
 from imgaug import augmenters as iaa
-import imgaug as ia
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.neural_network import MLPClassifier
-import time
 import logging
+
 logger_all = logging.getLogger(__name__)
 
 
@@ -167,7 +166,8 @@ class STL10_pairs(torchvision.datasets.STL10):
 # ])
 
 
-sometimes = lambda aug: iaa.Sometimes(0.5, aug)
+def sometimes(aug):
+    return iaa.Sometimes(0.5, aug)
 
 
 class ImgAugTransform:
@@ -331,10 +331,10 @@ def feature_loss(model, features_0, features_1, args, device, log_temp):
         sim_10 = features_1 @ features_0.data.t()  # redundant -- clean-up
         sim_11 = features_1 @ features_1.data.t()  # redundant -- clean-up
 
-    sim_positive = torch.diag(sim_10)
+    # sim_positive = torch.diag(sim_10)
 
     dist_00 = 1.0 - sim_00
-    dist_01 = 1.0 - sim_01
+    # dist_01 = 1.0 - sim_01
     dist_positive = torch.diag(dist_00)
 
     #
@@ -626,8 +626,8 @@ def feature_loss(model, features_0, features_1, args, device, log_temp):
 def train_autoencoder(model, dl, args, device, model_path):
 
     model.train()
-    start = time.time()
-    threshold = 0.1
+    # start = time.time()
+    # threshold = 0.1
 
     criterion = nn.BCELoss().to(device)
     # optimizer = torch.optim.SGD(
@@ -679,7 +679,7 @@ def train(model, pair_dataloader, optimizer, scheduler, args, device, log_temp):
     model.train()
     train_loss_list = []
     start = time.time()
-    threshold = 0.1
+    # threshold = 0.1
 
     # features_array = -1
     # labels_array = -1
@@ -689,11 +689,11 @@ def train(model, pair_dataloader, optimizer, scheduler, args, device, log_temp):
         if args.nm:
             batch_0 = torch.cat((batch[0], batch[1], batch[2]), 0).to(device)
             batch_1 = torch.cat((batch[3], batch[4], batch[5]), 0).to(device)
-            labels = batch[6]
+            # labels = batch[6]
         else:
             batch_0 = batch[0].to(device)
             batch_1 = batch[1].to(device)
-            labels = batch[2]
+            # labels = batch[2]
 
         if args.no_mixup:
             batch_1_mixup = batch_1
@@ -754,10 +754,12 @@ def train(model, pair_dataloader, optimizer, scheduler, args, device, log_temp):
             f"({batch_id}/{len(pair_dataloader)}) | ETA: {bar.eta_td} | Loss: {loss.item():.4f} | "
             f"Avg. Loss: {np.mean(np.array(train_loss_list)):.4f} | temp:{temp.item():.2f}"
         )
-        logger_all.info(f"({batch_id}/{len(pair_dataloader)}) | ETA: {bar.eta_td} | Loss: {loss.item():.4f} | "
-            f"Avg. Loss: {np.mean(np.array(train_loss_list)):.4f} | temp:{temp.item():.2f}")
+        logger_all.info(
+            f"({batch_id}/{len(pair_dataloader)}) | ETA: {bar.eta_td} | Loss: {loss.item():.4f} | "
+            f"Avg. Loss: {np.mean(np.array(train_loss_list)):.4f} | temp:{temp.item():.2f}"
+        )
         bar.next()
-        
+
         # save the features for later analysis
         # if first_batch:
         #     first_batch = False
@@ -839,7 +841,7 @@ class Logger(object):
     def __init__(self, fpath, title=None, resume=False):
         self.file = None
         self.resume = resume
-        self.title = "" if title == None else title
+        self.title = "" if title is None else title
         if fpath is not None:
             if resume:
                 self.file = open(fpath, "r")
@@ -881,7 +883,7 @@ class Logger(object):
         self.file.flush()
 
     def plot(self, names=None):
-        names = self.names if names == None else names
+        names = self.names if names is None else names
         numbers = self.numbers
         for _, name in enumerate(names):
             x = np.arange(len(numbers[name]))
@@ -895,7 +897,7 @@ class Logger(object):
 
 
 def plot_overlap(logger, names=None):
-    names = logger.names if names == None else names
+    names = logger.names if names is None else names
     numbers = logger.numbers
     for _, name in enumerate(names):
         x = np.arange(len(numbers[name]))
@@ -922,26 +924,29 @@ class LoggerMonitor(object):
         plt.legend(legend_text, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
         plt.grid(True)
 
+
 class FineTuned(nn.Module):
-        def __init__(self, fc):
-            super(FineTuned, self).__init__()
-            self.fc = fc
-            self.final_layer = nn.Linear(128, 10)
-        
-        def forward(self, x):
-            x = self.fc(x)
-            return self.final_layer(x)
+    def __init__(self, fc):
+        super(FineTuned, self).__init__()
+        self.fc = fc
+        self.final_layer = nn.Linear(128, 10)
+
+    def forward(self, x):
+        x = self.fc(x)
+        return self.final_layer(x)
+
 
 if __name__ == "__main__":
     import unsupervised_feature_model
     from torch.utils.data import SubsetRandomSampler
-    device = 'cuda'
+
+    device = "cuda"
     net = unsupervised_feature_model.resnet_original()
     net = MyDataParallel(net)
     # path = 'log/sim_CLR_original/model_ckpt.t'
-    path = 'log/rahul/model_ckpt.t'
+    path = "log/rahul/model_ckpt.t"
     checkpoint = torch.load(path)
-    net.load_state_dict(checkpoint['model'])
+    net.load_state_dict(checkpoint["model"])
     (
         labels_index,
         labels,
@@ -964,18 +969,13 @@ if __name__ == "__main__":
     )
     label_sampler = SubsetRandomSampler(labels_index)
     train_dl = torch.utils.data.DataLoader(train_dataset, 50, sampler=label_sampler)
-    
+
     cifar_test_dataset = torchvision.datasets.CIFAR10(
         "./data/", train=False, transform=test_augment, download=False
     )
     dataloader_test = torch.utils.data.DataLoader(
-        cifar_test_dataset,
-        batch_size=100,
-        shuffle=False,
-        num_workers=10,
+        cifar_test_dataset, batch_size=100, shuffle=False, num_workers=10,
     )
-    
-    
 
     # def get_accuracy(net, test_dl):
     #     net.eval()
@@ -984,10 +984,11 @@ if __name__ == "__main__":
     #         im, label = im.to(devie), label.to(device)
     #         output = net(im)
 
-
     final_net = FineTuned(net).to(device)
     sup_loss_criterion = nn.CrossEntropyLoss()
-    opt = torch.optim.SGD(final_net.parameters(), lr=.01, momentum=.9, weight_decay=.0001)
+    opt = torch.optim.SGD(
+        final_net.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0001
+    )
     # train_loss = []
     # for batch_id, (im, label) in enumerate(train_dl):
     #     im, label = im.to(device), label.to(device)
@@ -1000,61 +1001,71 @@ if __name__ == "__main__":
     #     if batch_id % 2:
     #         print(f"Loss is {np.mean(np.array(train_loss)):.4f}")
 
-    from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
+    from ignite.engine import (
+        Events,
+        create_supervised_trainer,
+        create_supervised_evaluator,
+    )
     from ignite.metrics import Accuracy, Loss, RunningAverage, ConfusionMatrix
-    from ignite.handlers import ModelCheckpoint, EarlyStopping
+    from ignite.handlers import EarlyStopping
 
     # defining the number of epochs
     epochs = 20
     # creating trainer,evaluator
-    trainer = create_supervised_trainer(final_net, opt, sup_loss_criterion, device=device)
+    trainer = create_supervised_trainer(
+        final_net, opt, sup_loss_criterion, device=device
+    )
     metrics = {
-        'accuracy':Accuracy(),
-        'nll':Loss(sup_loss_criterion),
-        'cm':ConfusionMatrix(num_classes=10)
+        "accuracy": Accuracy(),
+        "nll": Loss(sup_loss_criterion),
+        "cm": ConfusionMatrix(num_classes=10),
     }
-    train_evaluator = create_supervised_evaluator(final_net, metrics=metrics, device=device)
-    val_evaluator = create_supervised_evaluator(final_net, metrics=metrics, device=device)
-    training_history = {'accuracy':[],'loss':[]}
-    validation_history = {'accuracy':[],'loss':[]}
+    train_evaluator = create_supervised_evaluator(
+        final_net, metrics=metrics, device=device
+    )
+    val_evaluator = create_supervised_evaluator(
+        final_net, metrics=metrics, device=device
+    )
+    training_history = {"accuracy": [], "loss": []}
+    validation_history = {"accuracy": [], "loss": []}
     last_epoch = []
-    RunningAverage(output_transform=lambda x: x).attach(trainer, 'loss')
+    RunningAverage(output_transform=lambda x: x).attach(trainer, "loss")
+
     def score_function(engine):
-        val_loss = engine.state.metrics['nll']
+        val_loss = engine.state.metrics["nll"]
         return -val_loss
 
     handler = EarlyStopping(patience=10, score_function=score_function, trainer=trainer)
     val_evaluator.add_event_handler(Events.COMPLETED, handler)
 
-
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_training_results(trainer):
         train_evaluator.run(train_dl)
         metrics = train_evaluator.state.metrics
-        accuracy = metrics['accuracy']*100
-        loss = metrics['nll']
+        accuracy = metrics["accuracy"] * 100
+        loss = metrics["nll"]
         last_epoch.append(0)
-        training_history['accuracy'].append(accuracy)
-        training_history['loss'].append(loss)
-        print("Training Results - Epoch: {}  Avg accuracy: {:.2f} Avg loss: {:.2f}"
-            .format(trainer.state.epoch, accuracy, loss))
+        training_history["accuracy"].append(accuracy)
+        training_history["loss"].append(loss)
+        print(
+            "Training Results - Epoch: {}  Avg accuracy: {:.2f} Avg loss: {:.2f}".format(
+                trainer.state.epoch, accuracy, loss
+            )
+        )
 
     def log_validation_results(trainer):
         val_evaluator.run(dataloader_test)
         metrics = val_evaluator.state.metrics
-        accuracy = metrics['accuracy']*100
-        loss = metrics['nll']
-        validation_history['accuracy'].append(accuracy)
-        validation_history['loss'].append(loss)
-        print("Validation Results - Epoch: {}  Avg accuracy: {:.2f} Avg loss: {:.2f}"
-            .format(trainer.state.epoch, accuracy, loss))
-        
+        accuracy = metrics["accuracy"] * 100
+        loss = metrics["nll"]
+        validation_history["accuracy"].append(accuracy)
+        validation_history["loss"].append(loss)
+        print(
+            "Validation Results - Epoch: {}  Avg accuracy: {:.2f} Avg loss: {:.2f}".format(
+                trainer.state.epoch, accuracy, loss
+            )
+        )
+
     trainer.add_event_handler(Events.EPOCH_COMPLETED, log_validation_results)
     trainer.run(train_dl, max_epochs=epochs)
-    print(validation_history['accuracy'])
-
-        
-
-
-
-
+    print(validation_history["accuracy"])
