@@ -239,7 +239,7 @@ tfs = torchvision.transforms.Compose(
         ImgAugTransform(),
         torchvision.transforms.ToPILImage(),
         torchvision.transforms.RandomResizedCrop(size=32, scale=(0.2, 1.0)),
-        # torchvision.transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
+        torchvision.transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
         torchvision.transforms.RandomGrayscale(p=0.2),
         torchvision.transforms.ToTensor(),
     ]
