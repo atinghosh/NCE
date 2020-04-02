@@ -390,7 +390,7 @@ def feature_loss(model, features_0, features_1, args, device, log_temp):
         loss += -torch.sum(torch.log(torch.diag(proba_norm_01)))
         # loss = torch.sum(torch.log(1.0 + 1.0 / torch.diag(proba_norm_10)))
         # loss += torch.sum(torch.log(1.0 + 1.0 / torch.diag(proba_norm_01)))
-        return loss / batchsize
+        return .5 * loss / batchsize
 
     elif args.approach == "NCE":
         temp = 0.1  # temparture patameter

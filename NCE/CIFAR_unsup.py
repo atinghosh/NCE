@@ -256,7 +256,7 @@ if args.dataset == "cifar":
         hp.train_autoencoder(
             ae_model, dataloader_trainnoaugment, args, device, model_path
         )
-        model = unsupervised_feature_model.resnet_original()
+        # model = unsupervised_feature_model.resnet_original()
         model = copy.deepcopy(ae_model.encoder)
     else:
         model = unsupervised_feature_model.resnet_original()  # model from the paper
