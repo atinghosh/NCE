@@ -31,6 +31,7 @@ $$
 J_{N C E}(\theta)=-\frac{1}{n} \sum_{i=1}^{n} \log \left(\frac{\varphi\left(y_{i 0}, x ; \theta\right)}{\sum_{j=1}^{k} \varphi\left(y_{i j}, x ; \theta\right)}\right)
 $$
 
+<img src="https://latex.codecogs.com/gif.latex?\inline&space;J_{N&space;C&space;E}(\theta)=-\frac{1}{n}&space;\sum_{i=1}^{n}&space;\log&space;\left(\frac{\varphi\left(y_{i&space;0},&space;x&space;;&space;\theta\right)}{\sum_{j=1}^{k}&space;\varphi\left(y_{i&space;j},&space;x&space;;&space;\theta\right)}\right)" title="J_{N C E}(\theta)=-\frac{1}{n} \sum_{i=1}^{n} \log \left(\frac{\varphi\left(y_{i 0}, x ; \theta\right)}{\sum_{j=1}^{k} \varphi\left(y_{i j}, x ; \theta\right)}\right)" />
 
 ## Usage
 
