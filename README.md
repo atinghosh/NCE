@@ -1,4 +1,4 @@
-##Variants of NCE for unsupervised embedding learning 
+## Variants of NCE for unsupervised embedding learning 
 
 This repository contains code about implementation of different variants of NCE for representation learning on CIFAR10 and STL10. Below we give description of all type of loss implemented. 
 
@@ -16,7 +16,7 @@ This repository contains code about implementation of different variants of NCE 
 10. rand_aug -  we use [Randaugment](https://arxiv.org/pdf/1909.13719.pdf), with 2 randomly chosen augmentation from a list of 15 augmentations and intensity of each augmentation is chosen to be 9.
 11. ae_pretrain - We pretrain our feature extractor resnet model (which extracts a feature of dimension 128 for CIFAR10) with an auto encoder (by adding decoder network) for 100 epochs and then start our original training with weights initialized from this pretrained auto encoder.
 
-####Two main variants of NCE
+#### Two main variants of NCE
 
 **Vanila NCE**- 
 $$
