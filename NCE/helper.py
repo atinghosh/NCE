@@ -438,6 +438,68 @@ def feature_loss(model, features_0, features_1, args, device, log_temp):
 
         return loss / batchsize
 
+    elif args.approach == "no_norm_const":
+        temp = 1  # temparture patameter
+        proba_unorm_10 = torch.exp(sim_10 / temp)
+        proba_unorm_01 = torch.exp(sim_01 / temp)
+        proba_unorm_00 = torch.exp(sim_00 / temp)
+        proba_unorm_11 = torch.exp(sim_11 / temp)
+
+        # with torch.no_grad():
+        #     norm_constant_shared = torch.sum(proba_unorm_10, axis=1)
+        #     norm_constant_10 = norm_constant_shared + torch.sum(proba_unorm_11, axis=1) - torch.diag(proba_unorm_11)
+        #     norm_constant_01 = norm_constant_shared + torch.sum(proba_unorm_00, axis=1) - torch.diag(proba_unorm_00)
+
+        # with torch.no_grad():
+        #     norm_constant_1 = torch.sum(proba_unorm_10, axis=1)
+        #     norm_constant_0 = torch.sum(proba_unorm_01, axis=1)
+        #     norm_constant_10 = (
+        #         norm_constant_1
+        #         + torch.sum(proba_unorm_11, axis=1)
+        #         - torch.diag(proba_unorm_11)
+        #     )
+        #     norm_constant_01 = (
+        #         norm_constant_0
+        #         + torch.sum(proba_unorm_00, axis=1)
+        #         - torch.diag(proba_unorm_00)
+        #     )
+        norm_constant_10, norm_constant_01 = (1, 1)
+        # Z = model.norm_const()
+        Z = 1
+        proba_norm_10 = proba_unorm_10 / (Z * norm_constant_10)
+        proba_norm_11 = proba_unorm_11 / (Z * norm_constant_10)
+        proba_norm_01 = proba_unorm_01 / (Z * norm_constant_01)
+        proba_norm_00 = proba_unorm_00 / (Z * norm_constant_01)
+
+        pos_loss = torch.sum(torch.log(1.0 + 1.0 / torch.diag(proba_norm_01))) # positive pair 
+        
+        neg_loss = torch.sum(torch.log(1.0 + proba_norm_01))
+        neg_loss -= torch.sum(torch.log(1.0 + torch.diag(proba_norm_01)))
+
+        neg_loss += torch.sum(torch.log(1.0 + proba_norm_00))
+        neg_loss -= torch.sum(torch.log(1.0 + torch.diag(proba_norm_00)))
+
+        neg_loss += torch.sum(torch.log(1.0 + proba_norm_11))
+        neg_loss -= torch.sum(torch.log(1.0 + torch.diag(proba_norm_11)))
+        
+        loss = pos_loss + neg_loss
+
+        # loss += torch.sum(torch.log(1.0 + 1.0 / torch.diag(proba_norm_01)))
+
+
+        # loss += torch.sum(torch.log(1.0 + proba_norm_10))
+        # loss -= torch.sum(torch.log(1.0 + torch.diag(proba_norm_10)))
+        # loss += torch.sum(torch.log(1.0 + proba_norm_11))
+        # loss -= torch.sum(torch.log(1.0 + torch.diag(proba_norm_11)))
+
+        # loss += torch.sum(torch.log(1.0 + 1.0 / torch.diag(proba_norm_01)))
+        # loss += torch.sum(torch.log(1.0 + proba_norm_01))
+        # loss -= torch.sum(torch.log(1.0 + torch.diag(proba_norm_01)))
+        # loss += torch.sum(torch.log(1.0 + proba_norm_00))
+        # loss -= torch.sum(torch.log(1.0 + torch.diag(proba_norm_00)))
+
+        return loss / batchsize
+
     # DIFFERENT VARIANT OF NCE
 
     # Allow gradient through denominator

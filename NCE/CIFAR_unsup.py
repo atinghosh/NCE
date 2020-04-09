@@ -33,7 +33,7 @@ os.environ["USE_DAAL4PY_SKLEARN"] = "YES"
 parser = argparse.ArgumentParser(description="unsupervised embedding training with NCE")
 parser.add_argument(
     "--name",
-    default="cifar_nce_pretrain",
+    default="cifar_nce_default",
     type=str,
     help="give a suitable name of the experiment",
 )
@@ -43,7 +43,7 @@ parser.add_argument(
     help='dataset name: "cifar": cifar-10 datasetor "stl": stl-10 dataset]',
 )
 parser.add_argument(
-    "--gpu", default="0,2", type=str, help="gpu device ids for CUDA_VISIBLE_DEVICES"
+    "--gpu", default="0,1", type=str, help="gpu device ids for CUDA_VISIBLE_DEVICES"
 )
 parser.add_argument(
     "--approach",
@@ -57,6 +57,7 @@ parser.add_argument(
         "NCE_without_z",
         "learnable_tau",
         "sim_CLR",
+        "no_norm_const"
     ],
     help="choice of loss to be used for embedding learning",
 )
