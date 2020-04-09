@@ -2,6 +2,7 @@
 
 This repository contains code about implementation of different variants of NCE for representation learning on CIFAR10 and STL10. Below we give description of all type of loss implemented. **To render the math equations correctly use mathjax plugin for github from Chrome App Store**. 
 
+We train a resnet50 model to output a 128 dimensional embedding vector for CIFAR10 with different variants of NCE losses, we get following nearest neighbors based on cosine distance of the embedding vector, of the leftmost image as the query image.
 <img src="./fig/download.png" width="1000">
 
 ## List of Losses
