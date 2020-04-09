@@ -2,6 +2,8 @@
 
 This repository contains code about implementation of different variants of NCE for representation learning on CIFAR10 and STL10. Below we give description of all type of loss implemented. **To render the math equations correctly use mathjax plugin for github from Chrome App Store**. 
 
+<img src="./fig/download.png" width="1000">
+
 ## List of Losses
 
 1. NCE - vanila NCE, with both positive and negative term
