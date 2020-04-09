@@ -1,6 +1,6 @@
 ## Variants of NCE for unsupervised embedding learning 
 
-This repository contains code about implementation of different variants of NCE for representation learning on CIFAR10 and STL10. Below we give description of all type of loss implemented. 
+This repository contains code about implementation of different variants of NCE for representation learning on CIFAR10 and STL10. Below we give description of all type of loss implemented. **To render the math equations correctly use mathjax plugin for github Chrome App store**. 
 
 ## List of Losses
 
