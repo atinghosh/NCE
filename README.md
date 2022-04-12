@@ -21,18 +21,20 @@ We train a resnet50 model to output a 128 dimensional embedding vector for CIFAR
 
 #### Two main variants of NCE
 
-**Vanila NCE**- 
-$$
-J_{N C E}^{\prime}(\theta)=\frac{1}{n} \sum_{i=1}^{n}\left[\log \left(1+\frac{z \sum_{j=1}^{k} \varphi\left(y_{i j}, x ; \theta\right)}{\varphi\left(y_{i 0}, x ; \theta\right)}\right)+\sum_{j=1}^{k} \log \left(1+\frac{\varphi\left(y_{i j}, x ; \theta\right)}{z \sum_{j=1}^{k} \varphi\left(y_{i j}, x ; \theta\right)}\right)\right]
-$$
-where, $\varphi(y, x ; \theta)=\exp \left(<f_{\theta}(y), f_{\theta}(x)>/ \tau\right)$
+**Vanila NCE**-
+
+![](https://latex.codecogs.com/svg.image?J_{N&space;C&space;E}^{\prime}(\theta)=\frac{1}{n}&space;\sum_{i=1}^{n}\left[\log&space;\left(1&plus;\frac{z&space;\sum_{j=1}^{k}&space;\varphi\left(y_{i&space;j},&space;x&space;;&space;\theta\right)}{\varphi\left(y_{i&space;0},&space;x&space;;&space;\theta\right)}\right)&plus;\sum_{j=1}^{k}&space;\log&space;\left(1&plus;\frac{\varphi\left(y_{i&space;j},&space;x&space;;&space;\theta\right)}{z&space;\sum_{j=1}^{k}&space;\varphi\left(y_{i&space;j},&space;x&space;;&space;\theta\right)}\right)\right])
+
+where,
+
+![](https://latex.codecogs.com/svg.image?\varphi(y,&space;x&space;;&space;\theta)=\exp&space;\left(<f_{\theta}(y),&space;f_{\theta}(x)>/&space;\tau\right))
+
+For **Sim_CLR** we do not use the second term or the negative term, and the loss becomes
+
+![](https://latex.codecogs.com/svg.image?J_{SimCLR}(\theta)=-\frac{1}{n}&space;\sum_{i=1}^{n}&space;\log&space;\left(\frac{\varphi\left(y_{i&space;0},&space;x&space;;&space;\theta\right)}{\sum_{j=1}^{k}&space;\varphi\left(y_{i&space;j},&space;x&space;;&space;\theta\right)}\right))
 
 $f_{\theta}(x)$ is 128 dimensional output from our resnet model for image $x$. 
 
-For **Sim_CLR** we do not use the second term or the negative term, and the loss becomes
-$$
-J_{N C E}(\theta)=-\frac{1}{n} \sum_{i=1}^{n} \log \left(\frac{\varphi\left(y_{i 0}, x ; \theta\right)}{\sum_{j=1}^{k} \varphi\left(y_{i j}, x ; \theta\right)}\right)
-$$
 
 ## Usage
 
